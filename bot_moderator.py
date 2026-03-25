@@ -2,7 +2,7 @@
 Telegram Bot — Message Moderator
 Deploy on Render as a Background Worker.
 
-Build command : pip install "python-telegram-bot[job-queue]==20.*"
+Build command : pip install "python-telegram-bot[job-queue]==21.9"
 Start command : python bot_moderator.py
 
 Set TELEGRAM_BOT_TOKEN as an environment variable in Render dashboard.
@@ -10,6 +10,7 @@ Set TELEGRAM_BOT_TOKEN as an environment variable in Render dashboard.
 
 import os
 import re
+import asyncio
 import logging
 from telegram import Update, Message
 from telegram.ext import (
@@ -140,9 +141,9 @@ async def moderate_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 
 # ─────────────────────────────────────────────
-# MAIN
+# MAIN  — uses asyncio.run() for Python 3.14 compatibility
 # ─────────────────────────────────────────────
-def main() -> None:
+async def main() -> None:
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.add_handler(
         MessageHandler(
@@ -151,8 +152,12 @@ def main() -> None:
         )
     )
     logger.info("🤖 Moderator bot running...")
-    app.run_polling(allowed_updates=Update.ALL_TYPES)
+    async with app:
+        await app.initialize()
+        await app.start()
+        await app.updater.start_polling(allowed_updates=Update.ALL_TYPES)
+        await asyncio.Event().wait()   # block forever until Render stops the process
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
